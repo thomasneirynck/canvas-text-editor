@@ -44,6 +44,11 @@ function assertIsDoc(value: unknown): asserts value is Doc {
   }
 }
 
+export interface EditorSelectionState {
+  hasSelection: boolean;
+  boldActive: boolean;
+}
+
 export class CanvasTextEditor {
   private readonly canvas: HTMLCanvasElement;
   private readonly ctx: CanvasRenderingContext2D;
@@ -60,6 +65,7 @@ export class CanvasTextEditor {
   private isSelecting = false;
   private preferredCaretX: number | null = null;
   private readonly changeListeners = new Set<(doc: Doc) => void>();
+  private readonly selectionListeners = new Set<(state: EditorSelectionState) => void>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -97,6 +103,7 @@ export class CanvasTextEditor {
     }, 500);
 
     this.render();
+    this.emitSelectionChange();
   }
 
   private getSelectionRange(): [Position, Position] {
@@ -279,6 +286,37 @@ export class CanvasTextEditor {
     }
   }
 
+  private currentBoldActive(): boolean {
+    if (!this.hasSelection()) {
+      return this.isBold;
+    }
+    const [start, end] = this.getSelectionRange();
+    return isRangeFullyBold(this.doc, start, end);
+  }
+
+  private emitSelectionChange(): void {
+    const state: EditorSelectionState = {
+      hasSelection: this.hasSelection(),
+      boldActive: this.currentBoldActive(),
+    };
+    for (const listener of this.selectionListeners) {
+      listener(state);
+    }
+  }
+
+  private applyBoldToggle(): boolean {
+    if (this.hasSelection()) {
+      const [start, end] = this.getSelectionRange();
+      const shouldBold = !isRangeFullyBold(this.doc, start, end);
+      setBold(this.doc, start, end, shouldBold);
+      this.anchor = clampPosition(this.doc, start);
+      this.head = clampPosition(this.doc, end);
+      return true;
+    }
+    this.isBold = !this.isBold;
+    return false;
+  }
+
   private insertPlainTextAtSelection(text: string): void {
     if (this.deleteSelectionIfAny()) {
       // Selection removal handled before insert.
@@ -322,6 +360,7 @@ export class CanvasTextEditor {
     this.preferredCaretX = null;
     this.cursorVisible = true;
     this.render();
+    this.emitSelectionChange();
   };
 
   private readonly onMouseMove = (event: MouseEvent): void => {
@@ -331,10 +370,12 @@ export class CanvasTextEditor {
     this.head = hitTest(this.lines, event.offsetX, event.offsetY, this.ctx, this.lineHeight);
     this.cursorVisible = true;
     this.render();
+    this.emitSelectionChange();
   };
 
   private readonly onMouseUp = (): void => {
     this.isSelecting = false;
+    this.emitSelectionChange();
   };
 
   private readonly onDoubleClick = (event: MouseEvent): void => {
@@ -352,6 +393,7 @@ export class CanvasTextEditor {
     this.preferredCaretX = null;
     this.cursorVisible = true;
     this.render();
+    this.emitSelectionChange();
   };
 
   private readonly onCopy = (event: ClipboardEvent): void => {
@@ -378,6 +420,7 @@ export class CanvasTextEditor {
     this.cursorVisible = true;
     this.render();
     this.emitDocumentChange();
+    this.emitSelectionChange();
   };
 
   private readonly onPaste = (event: ClipboardEvent): void => {
@@ -390,6 +433,7 @@ export class CanvasTextEditor {
     this.cursorVisible = true;
     this.render();
     this.emitDocumentChange();
+    this.emitSelectionChange();
   };
 
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -397,16 +441,12 @@ export class CanvasTextEditor {
     let changed = false;
 
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "b") {
-      if (this.hasSelection()) {
-        const [start, end] = this.getSelectionRange();
-        const shouldBold = !isRangeFullyBold(this.doc, start, end);
-        setBold(this.doc, start, end, shouldBold);
-        this.anchor = clampPosition(this.doc, start);
-        this.head = clampPosition(this.doc, end);
-        changed = true;
-      } else {
-        this.isBold = !this.isBold;
-      }
+      changed = this.applyBoldToggle();
+      handled = true;
+    } else if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a") {
+      this.anchor = { paragraphIndex: 0, offset: 0 };
+      this.head = globalToPosition(this.doc, totalLengthWithBreaks(this.doc));
+      this.preferredCaretX = null;
       handled = true;
     } else if (event.key === "Backspace") {
       if (!this.deleteSelectionIfAny()) {
@@ -468,6 +508,7 @@ export class CanvasTextEditor {
       if (changed) {
         this.emitDocumentChange();
       }
+      this.emitSelectionChange();
     }
   };
 
@@ -483,6 +524,7 @@ export class CanvasTextEditor {
     this.cursorVisible = true;
     this.render();
     this.emitDocumentChange();
+    this.emitSelectionChange();
   }
 
   onChange(listener: (doc: Doc) => void): () => void {
@@ -490,6 +532,51 @@ export class CanvasTextEditor {
     return () => {
       this.changeListeners.delete(listener);
     };
+  }
+
+  onSelectionChange(listener: (state: EditorSelectionState) => void): () => void {
+    this.selectionListeners.add(listener);
+    listener({
+      hasSelection: this.hasSelection(),
+      boldActive: this.currentBoldActive(),
+    });
+    return () => {
+      this.selectionListeners.delete(listener);
+    };
+  }
+
+  isBoldActive(): boolean {
+    return this.currentBoldActive();
+  }
+
+  setBoldActive(active: boolean): void {
+    let changed = false;
+    if (this.hasSelection()) {
+      const [start, end] = this.getSelectionRange();
+      setBold(this.doc, start, end, active);
+      this.anchor = clampPosition(this.doc, start);
+      this.head = clampPosition(this.doc, end);
+      changed = true;
+    } else {
+      this.isBold = active;
+    }
+
+    this.cursorVisible = true;
+    this.render();
+    if (changed) {
+      this.emitDocumentChange();
+    }
+    this.emitSelectionChange();
+  }
+
+  toggleBold(): void {
+    const changed = this.applyBoldToggle();
+    this.cursorVisible = true;
+    this.render();
+    if (changed) {
+      this.emitDocumentChange();
+    }
+    this.emitSelectionChange();
   }
 
   render(): void {
@@ -517,6 +604,7 @@ export class CanvasTextEditor {
     this.canvas.removeEventListener("paste", this.onPaste);
     window.removeEventListener("mouseup", this.onMouseUp);
     this.changeListeners.clear();
+    this.selectionListeners.clear();
   }
 }
 

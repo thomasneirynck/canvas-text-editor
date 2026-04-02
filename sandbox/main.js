@@ -2,6 +2,8 @@ import { CanvasTextEditor } from "../dist/index.js";
 
 const canvas = document.getElementById("editor-canvas");
 const editorPane = document.getElementById("editor-pane");
+const editorCanvasWrap = document.querySelector(".editor-canvas-wrap");
+const toolbarBold = document.getElementById("toolbar-bold");
 const modelJson = document.getElementById("model-json");
 const jsonError = document.getElementById("json-error");
 
@@ -11,6 +13,14 @@ if (!(canvas instanceof HTMLCanvasElement)) {
 
 if (!(editorPane instanceof HTMLDivElement)) {
   throw new Error("Expected #editor-pane to be an HTMLDivElement.");
+}
+
+if (!(editorCanvasWrap instanceof HTMLDivElement)) {
+  throw new Error("Expected .editor-canvas-wrap to be an HTMLDivElement.");
+}
+
+if (!(toolbarBold instanceof HTMLButtonElement)) {
+  throw new Error("Expected #toolbar-bold to be an HTMLButtonElement.");
 }
 
 if (!(modelJson instanceof HTMLTextAreaElement)) {
@@ -38,7 +48,7 @@ const initialDoc = {
   ],
 };
 
-const paneRect = editorPane.getBoundingClientRect();
+const paneRect = editorCanvasWrap.getBoundingClientRect();
 canvas.width = Math.max(400, Math.floor(paneRect.width));
 canvas.height = Math.max(260, Math.floor(paneRect.height));
 
@@ -84,6 +94,25 @@ editor.onChange((doc) => {
   syncTextareaFromEditor(doc);
 });
 
+function syncBoldButton() {
+  const active = editor.isBoldActive();
+  toolbarBold.classList.toggle("active", active);
+  toolbarBold.setAttribute("aria-pressed", String(active));
+}
+
+editor.onSelectionChange(() => {
+  syncBoldButton();
+});
+
+toolbarBold.addEventListener("mousedown", (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  const next = !editor.isBoldActive();
+  editor.setBoldActive(next);
+  canvas.focus();
+  syncBoldButton();
+});
+
 modelJson.addEventListener("input", () => {
   if (applyingFromEditor) {
     return;
@@ -102,3 +131,5 @@ modelJson.addEventListener("input", () => {
     setJsonError(message);
   }
 });
+
+syncBoldButton();

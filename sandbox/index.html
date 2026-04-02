@@ -69,6 +69,43 @@
       }
 
       .editor-pane {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .toolbar {
+        position: relative;
+        z-index: 2;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px;
+        border: 1px solid #d0d0d0;
+        border-bottom: 0;
+        background: #fafafa;
+      }
+
+      .toolbar button {
+        min-width: 32px;
+        height: 28px;
+        border: 1px solid #c7c7c7;
+        border-radius: 4px;
+        background: white;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .toolbar button.active {
+        background: #2f6feb;
+        border-color: #2f6feb;
+        color: white;
+      }
+
+      .editor-canvas-wrap {
+        position: relative;
+        z-index: 1;
+        flex: 1;
         min-height: 0;
         border: 1px solid #d0d0d0;
         background: white;
@@ -83,7 +120,12 @@
         <div id="json-error" class="error-text"></div>
       </div>
       <div id="editor-pane" class="editor-pane">
-        <canvas id="editor-canvas" width="800" height="300"></canvas>
+        <div class="toolbar">
+          <button id="toolbar-bold" type="button" title="Bold (Ctrl/Cmd+B)">B</button>
+        </div>
+        <div class="editor-canvas-wrap">
+          <canvas id="editor-canvas" width="800" height="300"></canvas>
+        </div>
       </div>
     </div>
     <script type="module" src="./main.js"></script>
