@@ -32,6 +32,13 @@ export interface LayoutResult {
   lineHeight: number;
 }
 
+export interface StaticRenderOptions {
+  clearCanvas?: boolean;
+  drawBounds?: boolean;
+  drawText?: boolean;
+  textColor?: string;
+}
+
 const LINE_HEIGHT = 22;
 
 function nodeFont(node: TextNode): string {
@@ -141,25 +148,38 @@ function drawSelectionOnRun(
   ctx.fillRect(run.x + before, run.y, selected, lineHeight);
 }
 
-export function layoutAndRender(
+function findCaretCoordinates(
+  layout: LayoutResult,
+  cursor: Position,
+  ctx: CanvasRenderingContext2D,
+  bbox: BoundingBox,
+): { x: number; y: number } {
+  let cursorX = bbox.x;
+  let cursorY = bbox.y;
+  const cursorLine = layout.lines.find(
+    (line) => line.paragraphIndex === cursor.paragraphIndex && lineContainsOffset(line, cursor.offset),
+  );
+  if (cursorLine) {
+    cursorX = measureCaretInLine(cursorLine, cursor.offset, ctx, bbox);
+    cursorY = cursorLine.y;
+  } else if (layout.lines.length > 0) {
+    const fallback = layout.lines[layout.lines.length - 1];
+    cursorX = measureCaretInLine(fallback, fallback.charEnd, ctx, bbox);
+    cursorY = fallback.y;
+  }
+  return { x: cursorX, y: cursorY };
+}
+
+export function layoutDoc(
   ctx: CanvasRenderingContext2D,
   doc: Doc,
   bbox: BoundingBox,
-  cursor: Position,
-  selection: { anchor: Position; head: Position },
-  cursorVisible: boolean,
 ): LayoutResult {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  ctx.textBaseline = "top";
   const runs: LayoutRun[] = [];
   const lines: LayoutLine[] = [];
   const right = bbox.x + bbox.width;
   let currentX = bbox.x;
   let currentY = bbox.y;
-  let cursorX = bbox.x;
-  let cursorY = bbox.y;
-  const [selectionStart, selectionEnd] = orderRange(selection.anchor, selection.head);
-  const hasSelection = comparePositions(selectionStart, selectionEnd) !== 0;
 
   for (let paragraphIndex = 0; paragraphIndex < doc.content.length; paragraphIndex += 1) {
     const paragraph = doc.content[paragraphIndex];
@@ -225,47 +245,105 @@ export function layoutAndRender(
     currentY += LINE_HEIGHT;
   }
 
-  if (hasSelection) {
-    for (const run of runs) {
-      drawSelectionOnRun(ctx, run, LINE_HEIGHT, selectionStart, selectionEnd);
+  return { runs, lines, lineHeight: LINE_HEIGHT };
+}
+
+export function paintStaticLayout(
+  ctx: CanvasRenderingContext2D,
+  layout: LayoutResult,
+  bbox: BoundingBox,
+  options: StaticRenderOptions = {},
+): void {
+  const { clearCanvas = true, drawBounds = true, drawText = true, textColor = "#111111" } = options;
+  if (clearCanvas) {
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  }
+  ctx.textBaseline = "top";
+
+  if (drawText) {
+    ctx.fillStyle = textColor;
+    for (const run of layout.runs) {
+      ctx.font = run.font;
+      ctx.fillText(run.text, run.x, run.y);
     }
   }
 
+  if (drawBounds) {
+    // Draw the editable area bounds so wrapping behavior is visible.
+    ctx.strokeStyle = "#2f6feb";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      bbox.x + 0.5,
+      bbox.y + 0.5,
+      Math.max(0, bbox.width - 1),
+      Math.max(0, bbox.height - 1),
+    );
+  }
+}
+
+export function paintSelectionOverlay(
+  ctx: CanvasRenderingContext2D,
+  layout: LayoutResult,
+  selection: { anchor: Position; head: Position },
+): void {
+  const [selectionStart, selectionEnd] = orderRange(selection.anchor, selection.head);
+  const hasSelection = comparePositions(selectionStart, selectionEnd) !== 0;
+  if (hasSelection) {
+    for (const run of layout.runs) {
+      drawSelectionOnRun(ctx, run, LINE_HEIGHT, selectionStart, selectionEnd);
+    }
+  }
+}
+
+export function paintCaretOverlay(
+  ctx: CanvasRenderingContext2D,
+  layout: LayoutResult,
+  bbox: BoundingBox,
+  cursor: Position,
+  selection: { anchor: Position; head: Position },
+  cursorVisible: boolean,
+): void {
+  if (!cursorVisible) {
+    return;
+  }
+
+  const [selectionStart, selectionEnd] = orderRange(selection.anchor, selection.head);
+  const hasSelection = comparePositions(selectionStart, selectionEnd) !== 0;
+  if (hasSelection) {
+    return;
+  }
+
+  const caret = findCaretCoordinates(layout, cursor, ctx, bbox);
   ctx.fillStyle = "#111111";
-  for (const run of runs) {
-    ctx.font = run.font;
-    ctx.fillText(run.text, run.x, run.y);
-  }
+  ctx.fillRect(caret.x, caret.y, 1, LINE_HEIGHT);
+}
 
-  // Draw the editable area bounds so wrapping behavior is visible.
-  ctx.strokeStyle = "#2f6feb";
-  ctx.lineWidth = 1;
-  ctx.strokeRect(bbox.x + 0.5, bbox.y + 0.5, Math.max(0, bbox.width - 1), Math.max(0, bbox.height - 1));
+export function renderDocumentToCanvas(
+  ctx: CanvasRenderingContext2D,
+  doc: Doc,
+  bbox: BoundingBox,
+  options: StaticRenderOptions = {},
+): LayoutResult {
+  const layout = layoutDoc(ctx, doc, bbox);
+  paintStaticLayout(ctx, layout, bbox, options);
+  return layout;
+}
 
-  const cursorLine = lines.find(
-    (line) => line.paragraphIndex === cursor.paragraphIndex && lineContainsOffset(line, cursor.offset),
-  );
-  if (cursorLine) {
-    cursorX = measureCaretInLine(cursorLine, cursor.offset, ctx, bbox);
-    cursorY = cursorLine.y;
-  } else if (lines.length > 0) {
-    const fallback = lines[lines.length - 1];
-    cursorX = measureCaretInLine(fallback, fallback.charEnd, ctx, bbox);
-    cursorY = fallback.y;
-  }
+export function layoutAndRender(
+  ctx: CanvasRenderingContext2D,
+  doc: Doc,
+  bbox: BoundingBox,
+  cursor: Position,
+  selection: { anchor: Position; head: Position },
+  cursorVisible: boolean,
+): LayoutResult {
+  const layout = layoutDoc(ctx, doc, bbox);
+  paintStaticLayout(ctx, layout, bbox, { clearCanvas: true, drawBounds: false, drawText: false });
+  paintSelectionOverlay(ctx, layout, selection);
+  paintStaticLayout(ctx, layout, bbox, { clearCanvas: false, drawBounds: true, drawText: true });
+  paintCaretOverlay(ctx, layout, bbox, cursor, selection, cursorVisible);
 
-  if (cursorVisible && !hasSelection) {
-    const minX = bbox.x + 1;
-    const maxX = bbox.x + Math.max(1, bbox.width - 1);
-    const minY = bbox.y;
-    const maxY = bbox.y + Math.max(0, bbox.height - LINE_HEIGHT);
-    const clampedCursorX = Math.max(minX, Math.min(cursorX, maxX));
-    const clampedCursorY = Math.max(minY, Math.min(cursorY, maxY));
-    ctx.fillStyle = "#111111";
-    ctx.fillRect(clampedCursorX, clampedCursorY, 1, LINE_HEIGHT);
-  }
-
-  return { runs, lines, lineHeight: LINE_HEIGHT };
+  return layout;
 }
 
 export function hitTest(

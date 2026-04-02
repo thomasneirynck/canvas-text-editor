@@ -19,7 +19,7 @@
         box-sizing: border-box;
         padding: 16px;
         display: grid;
-        grid-template-columns: minmax(320px, 36%) 1fr;
+        grid-template-columns: minmax(280px, 32%) minmax(260px, 1fr) minmax(260px, 1fr);
         gap: 16px;
         align-items: stretch;
       }
@@ -74,6 +74,12 @@
         min-height: 0;
       }
 
+      .pane-topbar {
+        height: 52px;
+        box-sizing: border-box;
+        flex: 0 0 auto;
+      }
+
       .toolbar {
         position: relative;
         z-index: 2;
@@ -84,6 +90,13 @@
         border: 1px solid #d0d0d0;
         border-bottom: 0;
         background: #fafafa;
+      }
+
+      .toolbar-wrap {
+        height: 52px;
+        box-sizing: border-box;
+        display: flex;
+        align-items: center;
       }
 
       .toolbar button {
@@ -110,6 +123,19 @@
         border: 1px solid #d0d0d0;
         background: white;
       }
+
+      .static-pane {
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .static-canvas-wrap {
+        flex: 1;
+        min-height: 0;
+        border: 1px solid #d0d0d0;
+        background: white;
+      }
     </style>
   </head>
   <body>
@@ -120,11 +146,19 @@
         <div id="json-error" class="error-text"></div>
       </div>
       <div id="editor-pane" class="editor-pane">
-        <div class="toolbar">
-          <button id="toolbar-bold" type="button" title="Bold (Ctrl/Cmd+B)">B</button>
+        <div class="toolbar-wrap">
+          <div class="toolbar">
+            <button id="toolbar-bold" type="button" title="Bold (Ctrl/Cmd+B)">B</button>
+          </div>
         </div>
         <div class="editor-canvas-wrap">
           <canvas id="editor-canvas" width="800" height="300"></canvas>
+        </div>
+      </div>
+      <div class="static-pane">
+        <div class="pane-topbar"></div>
+        <div class="static-canvas-wrap">
+          <canvas id="static-canvas" width="800" height="300"></canvas>
         </div>
       </div>
     </div>

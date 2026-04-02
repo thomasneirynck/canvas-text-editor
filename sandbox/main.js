@@ -1,8 +1,10 @@
-import { CanvasTextEditor } from "../dist/index.js";
+import { CanvasTextEditor, renderDocument } from "../dist/index.js";
 
 const canvas = document.getElementById("editor-canvas");
 const editorPane = document.getElementById("editor-pane");
 const editorCanvasWrap = document.querySelector(".editor-canvas-wrap");
+const staticCanvas = document.getElementById("static-canvas");
+const staticCanvasWrap = document.querySelector(".static-canvas-wrap");
 const toolbarBold = document.getElementById("toolbar-bold");
 const modelJson = document.getElementById("model-json");
 const jsonError = document.getElementById("json-error");
@@ -28,16 +30,32 @@ const initialDoc = {
 const paneRect = editorCanvasWrap.getBoundingClientRect();
 canvas.width = Math.max(400, Math.floor(paneRect.width));
 canvas.height = Math.max(260, Math.floor(paneRect.height));
+const staticRect = staticCanvasWrap.getBoundingClientRect();
+staticCanvas.width = Math.max(260, Math.floor(staticRect.width));
+staticCanvas.height = Math.max(260, Math.floor(staticRect.height));
 
 const inset = 24;
+const editorWidth = Math.max(120, canvas.width - inset * 2);
+const editorHeight = Math.max(120, canvas.height - inset * 2);
 const editor = new CanvasTextEditor(
   canvas,
   inset,
   inset,
-  200,
-  200,
+  editorWidth,
+  editorHeight,
   initialDoc,
 );
+
+function renderStaticPreview(doc) {
+  const staticWidth = Math.max(120, staticCanvas.width - inset * 2);
+  const staticHeight = Math.max(120, staticCanvas.height - inset * 2);
+  renderDocument(staticCanvas, doc, {
+    x: inset,
+    y: inset,
+    width: staticWidth,
+    height: staticHeight,
+  });
+}
 
 let applyingFromEditor = false;
 let applyingFromTextarea = false;
@@ -66,9 +84,11 @@ function syncTextareaFromEditor(doc) {
 }
 
 syncTextareaFromEditor(editor.getDocument());
+renderStaticPreview(editor.getDocument());
 
 editor.onChange((doc) => {
   syncTextareaFromEditor(doc);
+  renderStaticPreview(doc);
 });
 
 function syncBoldButton() {

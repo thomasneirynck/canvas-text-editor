@@ -17,9 +17,15 @@ import {
 } from "./model.js";
 import {
   hitTest,
-  layoutAndRender,
+  layoutDoc,
+  paintCaretOverlay,
+  paintSelectionOverlay,
+  paintStaticLayout,
+  renderDocumentToCanvas,
+  type StaticRenderOptions,
   type BoundingBox,
   type LayoutLine,
+  type LayoutResult,
   type LayoutRun,
 } from "./layout.js";
 
@@ -44,9 +50,35 @@ function assertIsDoc(value: unknown): asserts value is Doc {
   }
 }
 
+function resolveContext(
+  target: HTMLCanvasElement | CanvasRenderingContext2D,
+): CanvasRenderingContext2D {
+  if (target instanceof HTMLCanvasElement) {
+    const ctx = target.getContext("2d");
+    if (!ctx) {
+      throw new Error("Canvas 2D context is not available.");
+    }
+    return ctx;
+  }
+  return target;
+}
+
 export interface EditorSelectionState {
   hasSelection: boolean;
   boldActive: boolean;
+}
+
+export function renderDocument(
+  target: HTMLCanvasElement | CanvasRenderingContext2D,
+  doc: Doc,
+  bbox: BoundingBox,
+  options: StaticRenderOptions = {},
+): LayoutResult {
+  assertIsDoc(doc);
+  const normalizedDoc = cloneDoc(doc);
+  normalizeDoc(normalizedDoc);
+  const ctx = resolveContext(target);
+  return renderDocumentToCanvas(ctx, normalizedDoc, bbox, options);
 }
 
 export class CanvasTextEditor {
@@ -580,9 +612,13 @@ export class CanvasTextEditor {
   }
 
   render(): void {
-    const result = layoutAndRender(
+    const result = layoutDoc(this.ctx, this.doc, this.bbox);
+    paintStaticLayout(this.ctx, result, this.bbox, { clearCanvas: true, drawBounds: false, drawText: false });
+    paintSelectionOverlay(this.ctx, result, { anchor: this.anchor, head: this.head });
+    paintStaticLayout(this.ctx, result, this.bbox, { clearCanvas: false, drawBounds: true, drawText: true });
+    paintCaretOverlay(
       this.ctx,
-      this.doc,
+      result,
       this.bbox,
       this.head,
       { anchor: this.anchor, head: this.head },
@@ -609,3 +645,12 @@ export class CanvasTextEditor {
 }
 
 export default CanvasTextEditor;
+
+export type { Doc, Mark, Paragraph, Position, TextNode } from "./model.js";
+export type {
+  BoundingBox,
+  LayoutLine,
+  LayoutResult,
+  LayoutRun,
+  StaticRenderOptions,
+} from "./layout.js";
