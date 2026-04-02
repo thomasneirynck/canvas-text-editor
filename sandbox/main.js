@@ -7,29 +7,6 @@ const toolbarBold = document.getElementById("toolbar-bold");
 const modelJson = document.getElementById("model-json");
 const jsonError = document.getElementById("json-error");
 
-if (!(canvas instanceof HTMLCanvasElement)) {
-  throw new Error("Expected #editor-canvas to be an HTMLCanvasElement.");
-}
-
-if (!(editorPane instanceof HTMLDivElement)) {
-  throw new Error("Expected #editor-pane to be an HTMLDivElement.");
-}
-
-if (!(editorCanvasWrap instanceof HTMLDivElement)) {
-  throw new Error("Expected .editor-canvas-wrap to be an HTMLDivElement.");
-}
-
-if (!(toolbarBold instanceof HTMLButtonElement)) {
-  throw new Error("Expected #toolbar-bold to be an HTMLButtonElement.");
-}
-
-if (!(modelJson instanceof HTMLTextAreaElement)) {
-  throw new Error("Expected #model-json to be an HTMLTextAreaElement.");
-}
-
-if (!(jsonError instanceof HTMLDivElement)) {
-  throw new Error("Expected #json-error to be an HTMLDivElement.");
-}
 
 const initialDoc = {
   type: "doc",
