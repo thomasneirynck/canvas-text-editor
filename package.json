@@ -1,0 +1,25 @@
+{
+  "name": "canvas-text-editor",
+  "version": "1.0.0",
+  "description": "A minimal canvas text editor package and sandbox",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "sandbox": "npm run build && python3 -m http.server 4173",
+    "test": "echo \"No tests yet\""
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^6.0.2"
+  }
+}
